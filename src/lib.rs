@@ -1,70 +1,124 @@
-#[derive(Clone, Debug)]
-pub struct Huffman {
-    buf: BitBuffer,
-    freqs: [u64; 256]
+pub mod coding;
+pub mod bundling;
+
+use bundling::ArchiveEntry;
+
+use std::{
+    fs,
+    io::{self, Read},
+    path::Path
+};
+
+/// Produce an archive given a list of files and directories.
+pub fn create_archive<I, P>(paths: I) -> io::Result<Vec<u8>>
+where
+    I: IntoIterator<Item = P>,
+    P: AsRef<Path>,
+{
+    let mut all_entries = Vec::new();
+
+    for path in paths {
+        let entries = read_entries(path)?;
+        all_entries.extend(entries);
+    }
+
+    Ok(archive_from_entries(&all_entries))
 }
 
-impl Huffman {
-    pub fn from_bytes(bytes: &[u8]) -> Self {
-        let mut freqs = [0; 256];
-
-        for &i in bytes {
-            freqs[i as usize] += 1;
-        }
-
-        Self {
-            buf: BitBuffer::with_capacity(bytes.len()),
-            freqs
-        }
-    }
+pub fn archive_from_entries(entries: &[ArchiveEntry]) -> Vec<u8> {
+    let bundle = bundling::bundle(entries);
+    coding::compress(&bundle)
 }
 
-#[derive(Clone, Debug)]
-pub struct BitBuffer {
-    output: Vec<u8>,
-    buf: u128,
-    len: u8
+pub fn entries_from_archive(compressed: &[u8]) -> Option<Vec<ArchiveEntry>> {
+    let decompressed = coding::decompress(compressed)?;
+    bundling::extract(&decompressed)
 }
 
-impl BitBuffer {
-    pub const fn new() -> Self {
-        Self {
-            output: Vec::new(),
-            buf: 0,
-            len: 0
+pub fn read_entries(path: impl AsRef<Path>) -> io::Result<Vec<ArchiveEntry>> {
+    let root = path.as_ref().to_path_buf();
+
+    let (base, root_name) = if root.is_dir() {
+        let parent = root.parent().unwrap_or_else(|| Path::new("."));
+
+        let name = root.file_name().ok_or_else(|| {
+            io::Error::new(io::ErrorKind::InvalidInput, "directory has no name")
+        })?;
+
+        (parent.to_path_buf(), name.to_os_string())
+    } else {
+        let parent = root.parent().unwrap_or_else(|| Path::new("."));
+
+        let name = root.file_name().ok_or_else(|| {
+            io::Error::new(io::ErrorKind::InvalidInput, "file has no name")
+        })?;
+
+        (parent.to_path_buf(), name.to_os_string())
+    };
+
+    let mut entries = Vec::new();
+    let mut stack = vec![root];
+
+    while let Some(current) = stack.pop() {
+        let meta = fs::metadata(&current)?;
+
+        let rel_path = if current == stack.first().cloned().unwrap_or_default() && stack.is_empty() {
+            root_name.clone().into_string().map_err(|_| {
+                io::Error::new(io::ErrorKind::InvalidData, "non‑UTF‑8 root name")
+            })?
+        } else {
+            current.strip_prefix(&base)
+                .map_err(|_| io::Error::new(io::ErrorKind::Other, "path stripping failed"))?
+                .to_str()
+                .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "non‑UTF‑8 path"))?
+                .to_owned()
+        };
+
+        if meta.is_dir() {
+            if !rel_path.is_empty() {
+                entries.push(ArchiveEntry {
+                    path: rel_path.as_bytes().to_vec(),
+                    is_dir: true,
+                    data: Vec::new(),
+                });
+            }
+
+            for child in fs::read_dir(&current)? {
+                let child = child?;
+                stack.push(child.path());
+            }
+        } else {
+            let mut data = Vec::new();
+            fs::File::open(&current)?.read_to_end(&mut data)?;
+
+            entries.push(ArchiveEntry {
+                path: rel_path.as_bytes().to_vec(),
+                is_dir: false,
+                data,
+            });
         }
     }
 
-    /// Like `BifBuffer::new`, but with the ability to preallocate the output vector.
-    pub fn with_capacity(cap: usize) -> Self {
-        Self {
-            output: Vec::with_capacity(cap),
-            buf: 0,
-            len: 0
+    Ok(entries)
+}
+
+pub fn write_entries_to_disk(entries: &[ArchiveEntry], output_dir: &Path) -> io::Result<()> {
+    for entry in entries {
+        let target = output_dir.join(
+            std::str::from_utf8(&entry.path)
+                .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "bad path"))?,
+        );
+
+        if entry.is_dir {
+            fs::create_dir_all(&target)?;
+        } else {
+            if let Some(parent) = target.parent() {
+                fs::create_dir_all(parent)?;
+            }
+
+            fs::write(&target, &entry.data)?;
         }
     }
 
-    /// Write `len` bits of `bits` into the buffer.
-    /// Assumes `len` <= 64 and there are no bits above `len`.
-    pub fn write(&mut self, bits: u64, len: u8) {
-        debug_assert!(len <= 64);
-
-        self.buf |= (bits as u128) << self.len;
-        self.len += len;
-
-        while self.len >= 8 {
-            self.output.push(self.buf as u8);
-            self.buf >>= 8;
-            self.len -= 8;
-        }
-    }
-
-    /// Flush remaining bits (padded with zeros if necessary).
-    pub fn flush(mut self) -> Vec<u8> {
-        if self.len > 0 {
-            self.output.push(self.buf as u8);
-        }
-
-        self.output
-    }
+    Ok(())
 }
