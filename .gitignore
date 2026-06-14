@@ -1,1 +1,3 @@
 /target
+/proptest_regressions
+Cargo.lock

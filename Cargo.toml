@@ -2,5 +2,19 @@
 name = "huffman_archiver"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
+repository = "https://github.com/maxicot/huffman_archiver"
+description = "A simple archiver based on Huffman's coding"
 
-[dependencies]
+[lib]
+name = "huffman_archiver"
+path = "src/lib.rs"
+
+[dev-dependencies]
+proptest = "1.11"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+opt-level = 3
