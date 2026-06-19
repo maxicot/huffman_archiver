@@ -64,7 +64,7 @@ pub fn decompress(bytes: &[u8]) -> Option<Vec<u8>> {
                 HuffmanNode::Leaf {byte, ..} => {
                     result.push(*byte);
                     break;
-                }
+                },
                 HuffmanNode::Internal {left, right, ..} => {
                     if bit_idx / 8 >= bits.len() {
                         return None; // premature end
@@ -113,7 +113,7 @@ impl Huffman {
                 Reverse(Box::new(
                     HuffmanNode::Leaf {
                         freq,
-                        byte: byte as u8,
+                        byte: byte as u8
                     }
                 ))
             })
@@ -169,7 +169,7 @@ impl PathTable {
                     let mut dirs = [0u8; 256];
                     dirs[..path_len as usize].copy_from_slice(&path[..path_len as usize]);
                     table[*byte as usize] = (dirs, path_len);
-                }
+                },
                 HuffmanNode::Internal {left, right, ..} => {
                     let mut left_path = path;
                     left_path[path_len as usize] = 0;
@@ -181,7 +181,10 @@ impl PathTable {
                 }
             }
         }
-        Self { paths: table }
+
+        Self {
+            paths: table
+        }
     }
 
     /// Encode a byte sequence using the path table.
@@ -318,5 +321,25 @@ mod tests {
             let decompressed = decompress(&compressed).expect("decompression failed");
             prop_assert_eq!(decompressed, data);
         }
+    }
+
+    #[test]
+    fn empty_input() {
+        assert!(compress(&[]).is_empty());
+        assert_eq!(decompress(&[]), Some(vec![]));
+    }
+
+    #[test]
+    fn single_symbol() {
+        let data = vec![0xFF];
+        let compressed = compress(&data);
+        assert_eq!(decompress(&compressed).unwrap(), data);
+    }
+
+    #[test]
+    fn single_symbol_repeated() {
+        let data = vec![0xFF; 1024];
+        let compressed = compress(&data);
+        assert_eq!(decompress(&compressed).unwrap(), data);
     }
 }

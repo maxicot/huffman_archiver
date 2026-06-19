@@ -1,4 +1,4 @@
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ArchiveEntry {
     pub path: Vec<u8>,
     pub is_dir: bool,
@@ -137,5 +137,51 @@ mod tests {
                 prop_assert_eq!(&orig.data, &ext.data);
             }
         }
+    }
+
+    #[test]
+    fn empty_archive() {
+        let bundled = bundle(&[]);
+        assert_eq!(bundled, vec![0u8, 0]); // end marker
+        assert!(extract(&bundled).unwrap().is_empty());
+    }
+
+    #[test]
+    fn single_file() {
+        let entry = ArchiveEntry {
+            path: b"foo.bar".to_vec(),
+            is_dir: false,
+            data: vec![1, 2, 3]
+        };
+
+        let bundled = bundle(&[entry.clone()]);
+        let extracted = extract(&bundled).unwrap();
+        assert_eq!(extracted, vec![entry]);
+    }
+
+    #[test]
+    fn single_dir() {
+        let entry = ArchiveEntry {
+            path: b"foo".to_vec(),
+            is_dir: true,
+            data: vec![]
+        };
+
+        let bundled = bundle(&[entry.clone()]);
+        let extracted = extract(&bundled).unwrap();
+        assert_eq!(extracted, vec![entry]);
+    }
+
+    #[test]
+    fn truncated_fails() {
+        let entry = ArchiveEntry {
+            path: b"x".to_vec(),
+            is_dir: false,
+            data: vec![0; 10]
+        };
+
+        let mut bundled = bundle(&[entry]);
+        bundled.truncate(bundled.len() - 5); // cut off some data
+        assert!(extract(&bundled).is_none());
     }
 }
