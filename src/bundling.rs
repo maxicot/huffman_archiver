@@ -16,7 +16,7 @@ pub fn bundle(entries: &[ArchiveEntry]) -> Vec<u8> {
         buf.extend_from_slice(&entry.path);
 
         // is_dir flag (u8)
-        buf.push(entry.is_dir.then_some(1).unwrap_or(0));
+        buf.push(if entry.is_dir {1} else {0});
 
         if !entry.is_dir {
             // data length (u64) + data
@@ -106,7 +106,7 @@ mod tests {
     use proptest::prelude::*;
 
     /// Generate an arbitrary `ArchiveEntry`.
-    fn arb_entry() -> impl Strategy<Value = ArchiveEntry> {
+    fn arbitrary_entry() -> impl Strategy<Value = ArchiveEntry> {
         let raw = (
             prop::collection::vec(any::<u8>(), 1..100), // path
             any::<bool>(), // is_dir
@@ -126,7 +126,7 @@ mod tests {
 
     proptest! {
         #[test]
-        fn roundtrip_random_entries(entries in prop::collection::vec(arb_entry(), 0..30)) {
+        fn random_entries(entries in prop::collection::vec(arbitrary_entry(), 0..30)) {
             let bundled = bundle(&entries);
             let extracted = extract(&bundled).expect("extraction failed");
             prop_assert_eq!(extracted.len(), entries.len());

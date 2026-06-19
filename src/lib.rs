@@ -68,7 +68,7 @@ pub fn read_entries(path: impl AsRef<Path>) -> io::Result<Vec<ArchiveEntry>> {
             })?
         } else {
             current.strip_prefix(&base)
-                .map_err(|_| io::Error::new(io::ErrorKind::Other, "path stripping failed"))?
+                .map_err(|_| io::Error::other("path stripping failed"))?
                 .to_str()
                 .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "non‑UTF‑8 path"))?
                 .to_owned()

@@ -28,7 +28,7 @@ pub fn compress(bytes: &[u8]) -> Vec<u8> {
 
 /// Decode a Huffman-encoded file produced by `compress`.
 pub fn decompress(bytes: &[u8]) -> Option<Vec<u8>> {
-    if bytes.len() == 0 {
+    if bytes.is_empty() {
         return Some(Vec::new());
     }
 
@@ -95,7 +95,7 @@ pub struct Huffman {
 impl Huffman {
     pub fn from_bytes(bytes: &[u8]) -> Self {
         Self {
-            freqs: bytes.into_iter().fold([0; 256], |mut acc, &i| {
+            freqs: bytes.iter().fold([0; 256], |mut acc, &i| {
                 acc[i as usize] += 1;
                 acc
             })
@@ -194,8 +194,8 @@ impl PathTable {
         for &byte in data {
             let (ref dirs, len) = self.paths[byte as usize];
 
-            for i in 0..len as usize {
-                buf.write_bit(dirs[i]);
+            for &i in dirs.iter().take(len as usize) {
+                buf.write_bit(i);
             }
         }
 
@@ -306,6 +306,12 @@ impl BitBuffer {
         }
 
         self.output
+    }
+}
+
+impl Default for BitBuffer {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

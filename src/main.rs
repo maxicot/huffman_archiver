@@ -1,7 +1,6 @@
 use std::path::Path;
-use huffman_archiver;
 
-const INSTRUCTIONS: &'static str = "\
+const INSTRUCTIONS: &str = "\
     Usage:\n  \
       huffman_archiver -c <output name> <files/directories>\n  \
       huffman_archiver -x <archive filename> <output directory>\
