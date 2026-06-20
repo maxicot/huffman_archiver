@@ -263,7 +263,7 @@ impl PartialOrd for HuffmanNode {
 #[derive(Clone, Debug)]
 pub struct BitBuffer {
     output: Vec<u8>,
-    buf: u128,
+    buf: u8,
     len: u8
 }
 
@@ -289,7 +289,7 @@ impl BitBuffer {
     pub fn write_bit(&mut self, bit: u8) {
         debug_assert!(bit == 0 || bit == 1);
 
-        self.buf |= (bit as u128) << self.len;
+        self.buf |= bit << self.len;
         self.len += 1;
 
         if self.len == 8 {
